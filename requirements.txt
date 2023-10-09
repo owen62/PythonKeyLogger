@@ -1,3 +1,7 @@
-pynput
 nuikta
 pyinstaller
+pynput
+psutil
+requests
+pyaudio
+wave
