@@ -5,4 +5,4 @@ wave
 pynput
 requests
 psutil
-
+cryptography
