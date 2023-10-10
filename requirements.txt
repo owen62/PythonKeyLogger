@@ -1,7 +1,8 @@
 nuikta
 pyinstaller
-pynput
-psutil
-requests
 pyaudio
 wave
+pynput
+requests
+psutil
+
