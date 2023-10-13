@@ -17,4 +17,8 @@ def save_key():
         sys.exit(1)
 
 if __name__ == "__main__":
-    save_key()
+    try:
+        save_key()
+    
+    except KeyboardInterrupt:
+        print('* Control-C entered...Program exiting *')

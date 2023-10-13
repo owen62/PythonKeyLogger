@@ -47,5 +47,9 @@ def main():
     except Exception as e:
         logging.exception(f"An error occurred: {str(e)}")
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    try:
+        main()
+
+    except KeyboardInterrupt:
+        print('* Control-C entered...Program exiting *')
