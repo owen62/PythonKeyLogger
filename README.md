@@ -12,6 +12,7 @@ The PythonKeyLogger project aims to create a simple keylogger and expand its fun
 - Audio Recording
 - Gathering clipboard content
 - Encrypt and decrypt the logs using a key (Generate randomly)
+- Capture Webcam screens
 
 ## Usage
 
