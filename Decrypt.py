@@ -52,4 +52,7 @@ if __name__ == '__main__':
         main()
 
     except KeyboardInterrupt:
-        print('* Control-C entered...Program exiting *')
+        print("Control-C entered...Program exiting ")
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
