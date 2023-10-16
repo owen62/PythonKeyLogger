@@ -37,7 +37,7 @@ Once the key is generated, run the keylogger script:
 python keylogger.py
 ```
 
-The script will run on your machine indefinitely until you press the "esc" key or terminate the script.
+The script will run on your machine indefinitely until you press the "esc" key.
 
 ### Decrypt the logs
 
