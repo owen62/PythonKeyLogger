@@ -7,12 +7,13 @@
 
 The PythonKeyLogger project aims to create a simple keylogger and expand its functionality with additional features:
 
-- Mouse click retrieval
-- Operating System (OS) information retrieval
+- Mouse click logging
+- Operating System (OS) information 
 - Audio Recording
 - Gathering clipboard content
-- Encrypt and decrypt the logs using a key (Generate randomly)
+- Encrypt and decrypt the logs using a key (Generated randomly)
 - Capture Webcam screens
+- Capture Screenshots
 
 ## Usage
 
@@ -50,4 +51,4 @@ python Decrypt.py
 
 Please note that this repo is for educational purposes only. No contributors, major or minor, are responsible for any actions made by the software.
 
-This project is not finished, it is ongoing and is being continuously enhanced with additional features (persistence, AV evasion, server integration for log storage, etc.)
+This project is not finished, it is ongoing and is being continuously enhanced with additional features (persistence, server integration for log storage, etc...)

