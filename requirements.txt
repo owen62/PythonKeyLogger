@@ -1,8 +1,12 @@
-nuikta
-pyinstaller
+logging
+requests
+threading
 pyaudio
 wave
 pynput
-requests
-psutil
 cryptography
+Pillow
+opencv-python
+psutil
+pywin32
+
