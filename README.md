@@ -7,7 +7,7 @@
 
 The PythonKeyLogger project aims to create a simple keylogger and expand its functionality with additional features:
 
-- Mouse click logging
+
 - Operating System (OS) information 
 - Audio Recording
 - Gathering clipboard content
@@ -37,7 +37,7 @@ Once the key is generated, run the keylogger script:
 python keylogger.py
 ```
 
-The script will run on your machine indefinitely until you press the "esc" key.
+The script will run on your machine indefinitely.
 
 ### Decrypt the logs
 

