@@ -53,4 +53,4 @@ You can now access to your logs.
 
 Please note that this repo is for educational purposes only. No contributors, major or minor, are responsible for any actions made by the software.
 
-This project is not finished, it is ongoing and is being continuously enhanced with additional features (persistence, server integration for log storage, etc...)
+This project is not finished, it is ongoing and is being continuously enhanced with additional features (send the logs by email, Logging Setting, etc...)
