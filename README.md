@@ -8,12 +8,13 @@
 The PythonKeyLogger project aims to create a simple keylogger and expand its functionality with additional features:
 
 
-- Operating System (OS) information 
+- Operating System (OS) Information
+- Collecting Mouse Clicks
 - Audio Recording
-- Gathering clipboard content
-- Encrypt and decrypt the logs using a key (Generated randomly)
-- Capture Webcam screens
-- Capture Screenshots
+- Collecting Clipboard Content
+- Encrypting and Decrypting Logs Using a Randomly Generated Key
+- Capturing Webcam Screens
+- Capturing Screenshots
 
 ## Usage
 
@@ -37,15 +38,16 @@ Once the key is generated, run the keylogger script:
 python keylogger.py
 ```
 
-The script will run on your machine indefinitely.
+The script will run on your machine for 20 secs. Then the logs will be stored in a encrypted zipfile
 
 ### Decrypt the logs
 
-To decrypt the logs, run the Decrypt.py script:
+To decrypt the zipfile, run the Decrypt.py script:
 
 ```bash
 python Decrypt.py
 ```
+You can now access to your logs.
 
 ## Notes
 
