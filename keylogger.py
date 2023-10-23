@@ -17,7 +17,7 @@ import sounddevice
 import wavio
 import zipfile
 import shutil
-import sys
+
 
 from pynput import keyboard, mouse
 from pynput.keyboard import Key
@@ -179,7 +179,7 @@ def encrypt_zip(zip_file_path):
         zip_data = unencrypted_zip.read()
 
     encrypted_zip_data = fernet.encrypt(zip_data)
-    
+
     with open(zip_file_path, 'wb') as encrypted_zip:
         encrypted_zip.write(encrypted_zip_data)
 
